@@ -101,13 +101,11 @@ export async function verifyPassword(userId: string, password: string) {
 
 export async function getAllUsers() {
   try {
-    console.log('Fetching all users');
     const db = await initDB();
-    const users = await db.all('SELECT id, username, fullName, createdAt FROM users');
-    console.log(`Found ${users.length} users`);
+    const users = await db.all('SELECT id, username, fullName, isAdmin FROM users ORDER BY isAdmin DESC, fullName ASC');
     return users;
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('Error getting all users:', error);
     throw error;
   }
 } 
