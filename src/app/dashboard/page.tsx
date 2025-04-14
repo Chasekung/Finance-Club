@@ -130,11 +130,35 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Box 3 */}
+          {/* Corporate Finance Box */}
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 h-full">
-            <h2 className="text-xl font-semibold text-white mb-4">Title 3</h2>
-            <div className="space-y-4 h-[calc(100%-3rem)]">
-              {/* Content will go here */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-white">Corporate Finance</h2>
+            </div>
+            <div className="space-y-3">
+              <Link 
+                href="/corporate-finance"
+                className="block w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-center"
+              >
+                View Corporate Finance
+              </Link>
+              {user.isAdmin ? (
+                <Link 
+                  href="/admin-corporate-finance"
+                  className="block w-full px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-center"
+                >
+                  Manage Content
+                </Link>
+              ) : (
+                <div className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg text-center cursor-not-allowed">
+                  Admins only!
+                </div>
+              )}
             </div>
           </div>
 
