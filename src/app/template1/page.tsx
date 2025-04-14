@@ -3,22 +3,54 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+interface Team {
+  name: string;
+  members: string;
+}
+
+interface LeaderboardEntry {
+  teamName: string;
+  score: number;
+}
+
 interface TemplateContent {
   title: string;
   instructions: string;
-  teams: string[];
+  teams: Team[];
   mainActivity: string;
-  leaderboard: string[];
+  leaderboard: LeaderboardEntry[];
 }
 
 export default function Template1() {
   const [content, setContent] = useState<TemplateContent>({
     title: "Sample Corporate Finance Challenge",
     instructions: "This is a sample set of instructions for the challenge. It should include all the necessary steps and guidelines for participants to follow.",
-    teams: ["Team Alpha", "Team Beta", "Team Gamma"],
+    teams: [],
     mainActivity: "This is the main activity description. It should detail what participants need to do and any specific requirements or constraints.",
-    leaderboard: ["Team Alpha: 100 points", "Team Beta: 85 points", "Team Gamma: 70 points"]
+    leaderboard: []
   });
+
+  useEffect(() => {
+    // Here you would fetch the actual content from your API
+    // For now using sample data
+    const fetchContent = async () => {
+      try {
+        // Simulating API call
+        const teamsData = JSON.parse('[{"name":"Team Alpha","members":"John, Alice, Bob"},{"name":"Team Beta","members":"Carol, Dave, Eve"}]');
+        const leaderboardData = JSON.parse('[{"teamName":"Team Alpha","score":100},{"teamName":"Team Beta","score":85}]');
+        
+        setContent(prev => ({
+          ...prev,
+          teams: teamsData,
+          leaderboard: leaderboardData
+        }));
+      } catch (error) {
+        console.error('Error fetching content:', error);
+      }
+    };
+
+    fetchContent();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-800 to-blue-600 p-8">
@@ -49,14 +81,14 @@ export default function Template1() {
               <thead>
                 <tr className="border-b border-white/20">
                   <th className="text-left py-3 px-4 text-white">Team Name</th>
-                  <th className="text-left py-3 px-4 text-white">Status</th>
+                  <th className="text-left py-3 px-4 text-white">Members</th>
                 </tr>
               </thead>
               <tbody>
                 {content.teams.map((team, index) => (
                   <tr key={index} className="border-b border-white/10">
-                    <td className="py-3 px-4 text-white">{team}</td>
-                    <td className="py-3 px-4 text-white">Active</td>
+                    <td className="py-3 px-4 text-white">{team.name}</td>
+                    <td className="py-3 px-4 text-white">{team.members}</td>
                   </tr>
                 ))}
               </tbody>
@@ -75,20 +107,23 @@ export default function Template1() {
         {/* Leaderboard */}
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
           <h2 className="text-2xl font-semibold text-white mb-4">Leaderboard</h2>
-          <div className="space-y-4">
-            {content.leaderboard.map((entry, index) => (
-              <div 
-                key={index}
-                className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
-              >
-                <span className="text-white">{entry}</span>
-                {index === 0 && (
-                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-300 rounded-full text-sm">
-                    First Place
-                  </span>
-                )}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/20">
+                  <th className="text-left py-3 px-4 text-white">Team Name</th>
+                  <th className="text-left py-3 px-4 text-white">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {content.leaderboard.map((entry, index) => (
+                  <tr key={index} className="border-b border-white/10">
+                    <td className="py-3 px-4 text-white">{entry.teamName}</td>
+                    <td className="py-3 px-4 text-white">{entry.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

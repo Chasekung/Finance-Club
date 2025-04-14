@@ -18,6 +18,16 @@ interface ContentItem {
   externalUrl?: string;
   internalUrl?: string;
   templatePath?: string;
+  includeTitle: boolean;
+  includeInstructions: boolean;
+  includeTeams: boolean;
+  includeMainActivity: boolean;
+  includeLeaderboard: boolean;
+  titleContent: string;
+  instructionsContent: string;
+  teamsContent: string;
+  mainActivityContent: string;
+  leaderboardContent: string;
 }
 
 interface GroupedContent {
@@ -27,6 +37,16 @@ interface GroupedContent {
 interface ApiResponse {
   fixedSections: string[];
   content: GroupedContent;
+}
+
+interface Team {
+  name: string;
+  members: string;
+}
+
+interface LeaderboardEntry {
+  teamName: string;
+  score: number;
 }
 
 export default function AdminCorporateFinance() {
@@ -62,6 +82,10 @@ export default function AdminCorporateFinance() {
   const [sortBy, setSortBy] = useState<'section' | 'type'>('section');
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [teams, setTeams] = useState<Team[]>([{ name: '', members: '' }]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [editingLeaderboard, setEditingLeaderboard] = useState<boolean>(false);
 
   const sections: Section[] = [
     { id: 'news', name: 'News' },
@@ -107,6 +131,15 @@ export default function AdminCorporateFinance() {
     setSuccess(null);
 
     try {
+      // Filter out empty teams
+      const validTeams = teams.filter(team => team.name.trim() !== '');
+      
+      // Create initial leaderboard entries
+      const initialLeaderboard = validTeams.map(team => ({
+        teamName: team.name,
+        score: 0
+      }));
+
       const response = await fetch('/api/corporate-finance/create', {
         method: 'POST',
         headers: {
@@ -126,9 +159,9 @@ export default function AdminCorporateFinance() {
           includeLeaderboard,
           titleContent,
           instructionsContent,
-          teamsContent,
+          teamsContent: JSON.stringify(validTeams),
           mainActivityContent,
-          leaderboardContent
+          leaderboardContent: JSON.stringify(initialLeaderboard),
         }),
       });
 
@@ -156,9 +189,9 @@ export default function AdminCorporateFinance() {
       setIncludeTitle(false);
       setTitleContent('');
       setInstructionsContent('');
-      setTeamsContent('');
       setMainActivityContent('');
-      setLeaderboardContent('');
+      setTeams([{ name: '', members: '' }]);
+      setLeaderboard([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -182,21 +215,123 @@ export default function AdminCorporateFinance() {
 
   const handleEdit = (item: ContentItem) => {
     setEditingItem(item);
+    try {
+      // Always parse teams if they exist
+      if (item.includeTeams && item.teamsContent) {
+        const parsedTeams = JSON.parse(item.teamsContent);
+        setTeams(parsedTeams.length > 0 ? parsedTeams : [{ name: '', members: '' }]);
+      } else {
+        setTeams([{ name: '', members: '' }]);
+      }
+
+      // Always parse leaderboard if it exists
+      if (item.includeLeaderboard && item.leaderboardContent) {
+        const parsedLeaderboard = JSON.parse(item.leaderboardContent);
+        setLeaderboard(parsedLeaderboard);
+      } else {
+        setLeaderboard([]);
+      }
+
+      // Set editing state for leaderboard
+      setEditingLeaderboard(item.includeLeaderboard);
+    } catch (e) {
+      console.error('Error parsing teams or leaderboard data:', e);
+      setTeams([{ name: '', members: '' }]);
+      setLeaderboard([]);
+    }
   };
 
   const handleUpdate = async (updatedItem: ContentItem) => {
     try {
+      // Filter out empty teams
+      const validTeams = teams.filter(team => team.name.trim() !== '');
+      
+      // Create updated leaderboard entries based on valid teams
+      const updatedLeaderboard = validTeams.map(team => {
+        const existingEntry = leaderboard.find(entry => entry.teamName === team.name);
+        return {
+          teamName: team.name,
+          score: existingEntry?.score || 0
+        };
+      });
+
       const response = await fetch(`/api/corporate-finance/${updatedItem.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updatedItem),
+        body: JSON.stringify({
+          ...updatedItem,
+          teamsContent: JSON.stringify(validTeams),
+          leaderboardContent: JSON.stringify(updatedLeaderboard),
+        }),
       });
       if (!response.ok) {
         throw new Error('Failed to update content');
       }
       setEditingItem(null);
+      setEditingLeaderboard(false);
+      await fetchContent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleTeamChange = (index: number, field: 'name' | 'members', value: string) => {
+    const newTeams = [...teams];
+    newTeams[index] = { ...newTeams[index], [field]: value };
+    setTeams(newTeams);
+    
+    // Update leaderboard when team names change
+    if (field === 'name' && includeLeaderboard) {
+      const newLeaderboard = newTeams.map(team => ({
+        teamName: team.name,
+        score: leaderboard.find(entry => entry.teamName === team.name)?.score || 0
+      }));
+      setLeaderboard(newLeaderboard);
+    }
+  };
+
+  const handleAddTeamRow = () => {
+    setTeams([...teams, { name: '', members: '' }]);
+  };
+
+  const handleRemoveTeamRow = (index: number) => {
+    const newTeams = teams.filter((_, i) => i !== index);
+    setTeams(newTeams);
+    
+    // Update leaderboard when removing a team
+    if (includeLeaderboard) {
+      const newLeaderboard = newTeams.map(team => ({
+        teamName: team.name,
+        score: leaderboard.find(entry => entry.teamName === team.name)?.score || 0
+      }));
+      setLeaderboard(newLeaderboard);
+    }
+  };
+
+  const handleLeaderboardScoreChange = (index: number, score: number) => {
+    const newLeaderboard = [...leaderboard];
+    newLeaderboard[index].score = score;
+    setLeaderboard(newLeaderboard);
+  };
+
+  const handleUpdateLeaderboard = async () => {
+    try {
+      const response = await fetch(`/api/corporate-finance/${editingItem?.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...editingItem,
+          leaderboardContent: JSON.stringify(leaderboard),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update leaderboard');
+      }
+      setEditingLeaderboard(false);
       await fetchContent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -215,6 +350,74 @@ export default function AdminCorporateFinance() {
         return a.linkType.localeCompare(b.linkType);
       }
     });
+
+    const renderTeamsData = (teamsContent: string) => {
+      try {
+        const teams = JSON.parse(teamsContent);
+        if (!Array.isArray(teams) || teams.length === 0) return null;
+        
+        return (
+          <div className="mt-4 bg-white/5 rounded-lg p-4">
+            <h4 className="text-lg font-medium text-white mb-2">Teams</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/20">
+                    <th className="text-left py-2 px-4 text-white">Team Name</th>
+                    <th className="text-left py-2 px-4 text-white">Members</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((team: Team, index: number) => (
+                    <tr key={index} className="border-b border-white/10">
+                      <td className="py-2 px-4 text-white">{team.name}</td>
+                      <td className="py-2 px-4 text-white">{team.members}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      } catch (e) {
+        console.error('Error rendering teams data:', e);
+        return null;
+      }
+    };
+
+    const renderLeaderboardData = (leaderboardContent: string) => {
+      try {
+        const leaderboard = JSON.parse(leaderboardContent);
+        if (!Array.isArray(leaderboard) || leaderboard.length === 0) return null;
+
+        return (
+          <div className="mt-4 bg-white/5 rounded-lg p-4">
+            <h4 className="text-lg font-medium text-white mb-2">Leaderboard</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/20">
+                    <th className="text-left py-2 px-4 text-white">Team Name</th>
+                    <th className="text-left py-2 px-4 text-white">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard.map((entry: LeaderboardEntry, index: number) => (
+                    <tr key={index} className="border-b border-white/10">
+                      <td className="py-2 px-4 text-white">{entry.teamName}</td>
+                      <td className="py-2 px-4 text-white">{entry.score}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      } catch (e) {
+        console.error('Error rendering leaderboard data:', e);
+        return null;
+      }
+    };
 
     return (
       <div className="space-y-4">
@@ -235,12 +438,30 @@ export default function AdminCorporateFinance() {
               key={item.id}
               className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20"
             >
-              <div className="flex justify-between items-start">
-                <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="space-y-2">
                   <h3 className="text-xl font-medium text-white">{item.itemName}</h3>
                   <p className="text-white/70">
                     Section: {item.section} | Type: {item.linkType}
                   </p>
+                  {item.includeTitle && (
+                    <div className="mt-2">
+                      <h4 className="text-lg font-medium text-white">Title</h4>
+                      <p className="text-white/90 bg-white/5 rounded-lg p-3">{item.titleContent}</p>
+                    </div>
+                  )}
+                  {item.includeInstructions && (
+                    <div className="mt-2">
+                      <h4 className="text-lg font-medium text-white">Instructions</h4>
+                      <p className="text-white/90 bg-white/5 rounded-lg p-3">{item.instructionsContent}</p>
+                    </div>
+                  )}
+                  {item.includeMainActivity && (
+                    <div className="mt-2">
+                      <h4 className="text-lg font-medium text-white">Main Activity</h4>
+                      <p className="text-white/90 bg-white/5 rounded-lg p-3">{item.mainActivityContent}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -257,12 +478,140 @@ export default function AdminCorporateFinance() {
                   </button>
                 </div>
               </div>
+
+              {item.includeTeams && renderTeamsData(item.teamsContent)}
+              {item.includeLeaderboard && !editingLeaderboard && renderLeaderboardData(item.leaderboardContent)}
+              
+              {editingItem?.id === item.id && editingLeaderboard && (
+                <div className="mt-4 bg-white/5 rounded-lg p-4">
+                  <h4 className="text-lg font-medium text-white mb-2">Update Leaderboard</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/20">
+                          <th className="text-left py-2 px-4 text-white">Team Name</th>
+                          <th className="text-left py-2 px-4 text-white">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaderboard.map((entry, index) => (
+                          <tr key={index} className="border-b border-white/10">
+                            <td className="py-2 px-4 text-white">{entry.teamName}</td>
+                            <td className="py-2 px-4">
+                              <input
+                                type="number"
+                                value={entry.score}
+                                onChange={(e) => handleLeaderboardScoreChange(index, parseInt(e.target.value) || 0)}
+                                className="w-full p-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <button
+                      onClick={handleUpdateLeaderboard}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                    >
+                      Update Leaderboard
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
       </div>
     );
   };
+
+  const renderTeamsTable = () => (
+    <div className="mt-4">
+      <div className="overflow-x-auto bg-white/5 rounded-lg p-4">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className="text-left p-2 text-white">Team Name</th>
+              <th className="text-left p-2 text-white">Team Members (comma-separated)</th>
+              <th className="w-20"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {teams.map((team, index) => (
+              <tr key={index} className="border-t border-white/10">
+                <td className="p-2">
+                  <input
+                    type="text"
+                    value={team.name}
+                    onChange={(e) => handleTeamChange(index, 'name', e.target.value)}
+                    placeholder="Team Name"
+                    className="w-full bg-white/10 text-white p-2 rounded"
+                  />
+                </td>
+                <td className="p-2">
+                  <input
+                    type="text"
+                    value={team.members}
+                    onChange={(e) => handleTeamChange(index, 'members', e.target.value)}
+                    placeholder="Member1, Member2, ..."
+                    className="w-full bg-white/10 text-white p-2 rounded"
+                  />
+                </td>
+                <td className="p-2">
+                  <button
+                    onClick={() => handleRemoveTeamRow(index)}
+                    className="text-red-400 hover:text-red-300 px-2"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button
+          onClick={handleAddTeamRow}
+          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Add Team
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderLeaderboardTable = () => (
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium text-white">Leaderboard</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-white/20">
+              <th className="text-left py-3 px-4 text-white">Team Name</th>
+              <th className="text-left py-3 px-4 text-white">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teams.filter(team => team.name.trim() !== '').map((team, index) => (
+              <tr key={index} className="border-b border-white/10">
+                <td className="py-3 px-4 text-white">{team.name}</td>
+                <td className="py-3 px-4">
+                  <input
+                    type="number"
+                    value={leaderboard[index]?.score || 0}
+                    onChange={(e) => handleLeaderboardScoreChange(index, parseInt(e.target.value) || 0)}
+                    className="w-full p-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    placeholder="Enter score"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -482,15 +831,7 @@ export default function AdminCorporateFinance() {
                             />
                             <span>Include Teams Table</span>
                           </label>
-                          {includeTeams && (
-                            <textarea
-                              value={teamsContent}
-                              onChange={(e) => setTeamsContent(e.target.value)}
-                              className="w-full p-2 bg-white/10 border border-white/20 rounded-lg text-white"
-                              placeholder="Enter team names (one per line)"
-                              rows={4}
-                            />
-                          )}
+                          {includeTeams && renderTeamsTable()}
                         </div>
 
                         {/* Main Activity Box */}
@@ -526,15 +867,7 @@ export default function AdminCorporateFinance() {
                             />
                             <span>Include Leaderboard</span>
                           </label>
-                          {includeLeaderboard && (
-                            <textarea
-                              value={leaderboardContent}
-                              onChange={(e) => setLeaderboardContent(e.target.value)}
-                              className="w-full p-2 bg-white/10 border border-white/20 rounded-lg text-white"
-                              placeholder="Enter leaderboard content (one entry per line)"
-                              rows={4}
-                            />
-                          )}
+                          {includeLeaderboard && renderLeaderboardTable()}
                         </div>
                       </div>
                     </div>

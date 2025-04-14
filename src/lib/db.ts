@@ -255,23 +255,31 @@ async function createTemplatePage(content: CorporateFinanceContent) {
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+interface Team {
+  name: string;
+  members: string;
+}
+
+interface LeaderboardEntry {
+  teamName: string;
+  score: number;
+}
+
 interface TemplateContent {
   title: string;
-  customTitle?: string;
   instructions: string;
-  teams: string[];
+  teams: Team[];
   mainActivity: string;
-  leaderboard: string[];
+  leaderboard: LeaderboardEntry[];
 }
 
 export default function CorporateFinancePage() {
   const [content, setContent] = useState<TemplateContent>({
     title: "${content.itemName}",
-    customTitle: "${content.titleContent || ''}",
     instructions: "${content.instructionsContent || ''}",
-    teams: ${content.teamsContent ? JSON.stringify(content.teamsContent.split('\\n').filter(Boolean)) : '[]'},
+    teams: ${content.teamsContent || '[]'},
     mainActivity: "${content.mainActivityContent || ''}",
-    leaderboard: ${content.leaderboardContent ? JSON.stringify(content.leaderboardContent.split('\\n').filter(Boolean)) : '[]'}
+    leaderboard: ${content.leaderboardContent || '[]'}
   });
 
   return (
@@ -292,7 +300,7 @@ export default function CorporateFinancePage() {
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 mb-8">
           <h2 className="text-2xl font-semibold text-white mb-4">Title</h2>
           <div className="prose prose-invert">
-            <p className="text-white/90 whitespace-pre-line">{content.customTitle}</p>
+            <p className="text-white/90 whitespace-pre-line">${content.titleContent || ''}</p>
           </div>
         </div>
         ` : ''}
@@ -316,14 +324,14 @@ export default function CorporateFinancePage() {
               <thead>
                 <tr className="border-b border-white/20">
                   <th className="text-left py-3 px-4 text-white">Team Name</th>
-                  <th className="text-left py-3 px-4 text-white">Status</th>
+                  <th className="text-left py-3 px-4 text-white">Members</th>
                 </tr>
               </thead>
               <tbody>
                 {content.teams.map((team, index) => (
                   <tr key={index} className="border-b border-white/10">
-                    <td className="py-3 px-4 text-white">{team}</td>
-                    <td className="py-3 px-4 text-white">Active</td>
+                    <td className="py-3 px-4 text-white">{team.name}</td>
+                    <td className="py-3 px-4 text-white">{team.members}</td>
                   </tr>
                 ))}
               </tbody>
@@ -346,20 +354,25 @@ export default function CorporateFinancePage() {
         {/* Leaderboard */}
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
           <h2 className="text-2xl font-semibold text-white mb-4">Leaderboard</h2>
-          <div className="space-y-4">
-            {content.leaderboard.map((entry, index) => (
-              <div 
-                key={index}
-                className="flex items-center justify-between p-4 bg-white/5 rounded-lg"
-              >
-                <span className="text-white">{entry}</span>
-                {index === 0 && (
-                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-300 rounded-full text-sm">
-                    First Place
-                  </span>
-                )}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/20">
+                  <th className="text-left py-3 px-4 text-white">Team Name</th>
+                  <th className="text-right py-3 px-4 text-white">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {content.leaderboard
+                  .sort((a, b) => b.score - a.score)
+                  .map((entry, index) => (
+                    <tr key={index} className="border-b border-white/10">
+                      <td className="py-3 px-4 text-white">{entry.teamName}</td>
+                      <td className="py-3 px-4 text-white text-right">{entry.score}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
         </div>
         ` : ''}
@@ -407,21 +420,33 @@ export async function getAllCorporateFinanceContent() {
   }
 }
 
-export async function getCorporateFinanceContentById(id: string) {
+export async function getCorporateFinanceContentById(id: string): Promise<CorporateFinanceContent | null> {
   try {
+    console.log('Getting content by ID:', id);
     const db = await initDB();
-    const content = await db.get('SELECT * FROM corporate_finance_content WHERE id = ?', id);
-    if (content) {
-      return {
-        ...content,
-        includeTitle: Boolean(content.includeTitle),
-        includeInstructions: Boolean(content.includeInstructions),
-        includeTeams: Boolean(content.includeTeams),
-        includeMainActivity: Boolean(content.includeMainActivity),
-        includeLeaderboard: Boolean(content.includeLeaderboard)
-      };
+    
+    const content = await db.get(
+      `SELECT * FROM corporate_finance_content WHERE id = ? OR internalUrl = ?`,
+      [id, id]
+    );
+
+    if (!content) {
+      console.log('No content found for ID:', id);
+      return null;
     }
-    return null;
+
+    // Convert SQLite boolean integers to JavaScript booleans
+    const formattedContent: CorporateFinanceContent = {
+      ...content,
+      includeTitle: Boolean(content.includeTitle),
+      includeInstructions: Boolean(content.includeInstructions),
+      includeTeams: Boolean(content.includeTeams),
+      includeMainActivity: Boolean(content.includeMainActivity),
+      includeLeaderboard: Boolean(content.includeLeaderboard),
+    };
+
+    console.log('Content retrieved successfully');
+    return formattedContent;
   } catch (error) {
     console.error('Error getting content by ID:', error);
     throw error;
@@ -514,6 +539,48 @@ export async function deleteCorporateFinanceContent(id: string) {
     return true;
   } catch (error) {
     console.error('Error deleting content:', error);
+    throw error;
+  }
+}
+
+export async function updateAllInternalPages() {
+  try {
+    console.log('Starting update of all internal pages...');
+    const db = await initDB();
+    
+    // Get all internal pages
+    const internalPages = await db.all(`
+      SELECT * FROM corporate_finance_content 
+      WHERE linkType = 'internal'
+    `);
+
+    console.log(`Found ${internalPages.length} internal pages to update`);
+
+    // Convert SQLite boolean (0/1) to JavaScript boolean and update each page
+    for (const page of internalPages) {
+      const formattedContent: CorporateFinanceContent = {
+        ...page,
+        includeTitle: Boolean(page.includeTitle),
+        includeInstructions: Boolean(page.includeInstructions),
+        includeTeams: Boolean(page.includeTeams),
+        includeMainActivity: Boolean(page.includeMainActivity),
+        includeLeaderboard: Boolean(page.includeLeaderboard),
+      };
+
+      // Regenerate the template page with the new format
+      const templatePath = `/corporate-finance/${formattedContent.internalUrl || formattedContent.id}`;
+      await createTemplatePage({
+        ...formattedContent,
+        templatePath
+      });
+
+      console.log(`Updated template for page: ${templatePath}`);
+    }
+
+    console.log('All internal pages updated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error updating internal pages:', error);
     throw error;
   }
 }
