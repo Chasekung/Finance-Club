@@ -14,6 +14,15 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Disable server-dependent features
+  experimental: {
+    appDir: true,
+    serverActions: false,
+  },
+  // Ensure static paths are generated
+  env: {
+    NEXT_PUBLIC_BASE_PATH: '/Finance-Club',
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -21,6 +30,9 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
+        http: false,
+        https: false,
+        os: false,
       };
     }
     return config;
