@@ -60,6 +60,30 @@ export async function initDB() {
       )
     `);
 
+    // Create personal finance content table if it doesn't exist
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS personal_finance_content (
+        id TEXT PRIMARY KEY,
+        section TEXT NOT NULL,
+        itemName TEXT NOT NULL,
+        linkType TEXT NOT NULL,
+        externalUrl TEXT,
+        internalUrl TEXT,
+        templatePath TEXT,
+        includeTitle INTEGER NOT NULL,
+        includeInstructions INTEGER NOT NULL,
+        includeTeams INTEGER NOT NULL,
+        includeMainActivity INTEGER NOT NULL,
+        includeLeaderboard INTEGER NOT NULL,
+        titleContent TEXT,
+        instructionsContent TEXT,
+        teamsContent TEXT,
+        mainActivityContent TEXT,
+        leaderboardContent TEXT,
+        createdAt TEXT NOT NULL
+      )
+    `);
+
     console.log('Database initialized successfully');
     return db;
   } catch (error) {
@@ -533,6 +557,15 @@ export async function deleteCorporateFinanceContent(id: string) {
       const templatePath = `src/app${content.templatePath}/page.tsx`;
       if (fs.existsSync(templatePath)) {
         fs.unlinkSync(templatePath);
+        
+        // Try to remove the directory if it's empty
+        const dir = path.dirname(templatePath);
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          if (files.length === 0) {
+            fs.rmdirSync(dir);
+          }
+        }
       }
     }
 
@@ -581,6 +614,370 @@ export async function updateAllInternalPages() {
     return true;
   } catch (error) {
     console.error('Error updating internal pages:', error);
+    throw error;
+  }
+}
+
+interface PersonalFinanceContent {
+  id: string;
+  section: string;
+  itemName: string;
+  linkType: 'external' | 'internal';
+  externalUrl?: string;
+  internalUrl?: string;
+  templatePath?: string;
+  includeTitle: boolean;
+  includeInstructions: boolean;
+  includeTeams: boolean;
+  includeMainActivity: boolean;
+  includeLeaderboard: boolean;
+  titleContent: string;
+  instructionsContent: string;
+  teamsContent: string;
+  mainActivityContent: string;
+  leaderboardContent: string;
+  createdAt: string;
+}
+
+async function createPersonalFinanceTemplatePage(content: PersonalFinanceContent) {
+  try {
+    const templatePath = `src/app${content.templatePath}/page.tsx`;
+    const templateContent = `
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+interface Team {
+  name: string;
+  members: string;
+}
+
+interface LeaderboardEntry {
+  teamName: string;
+  score: number;
+}
+
+interface TemplateContent {
+  title: string;
+  instructions: string;
+  teams: Team[];
+  mainActivity: string;
+  leaderboard: LeaderboardEntry[];
+}
+
+export default function PersonalFinancePage() {
+  const [content, setContent] = useState<TemplateContent>({
+    title: "${content.itemName}",
+    instructions: "${content.instructionsContent || ''}",
+    teams: ${content.teamsContent || '[]'},
+    mainActivity: "${content.mainActivityContent || ''}",
+    leaderboard: ${content.leaderboardContent || '[]'}
+  });
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-blue-800 to-blue-600 p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-white">{content.title}</h1>
+          <Link 
+            href="/dashboard"
+            className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
+
+        ${content.includeTitle ? `
+        {/* Title Box */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-4">Title</h2>
+          <div className="prose prose-invert">
+            <p className="text-white/90 whitespace-pre-line">${content.titleContent || ''}</p>
+          </div>
+        </div>
+        ` : ''}
+
+        ${content.includeInstructions ? `
+        {/* Instructions Box */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-4">Instructions</h2>
+          <div className="prose prose-invert">
+            <p className="text-white/90 whitespace-pre-line">{content.instructions}</p>
+          </div>
+        </div>
+        ` : ''}
+
+        ${content.includeTeams ? `
+        {/* Teams Table */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-4">Teams</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/20">
+                  <th className="text-left py-3 px-4 text-white">Team Name</th>
+                  <th className="text-left py-3 px-4 text-white">Members</th>
+                </tr>
+              </thead>
+              <tbody>
+                {content.teams.map((team, index) => (
+                  <tr key={index} className="border-b border-white/10">
+                    <td className="py-3 px-4 text-white">{team.name}</td>
+                    <td className="py-3 px-4 text-white">{team.members}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        ` : ''}
+
+        ${content.includeMainActivity ? `
+        {/* Main Activity Box */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-4">Main Activity</h2>
+          <div className="prose prose-invert">
+            <p className="text-white/90 whitespace-pre-line">{content.mainActivity}</p>
+          </div>
+        </div>
+        ` : ''}
+
+        ${content.includeLeaderboard ? `
+        {/* Leaderboard */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+          <h2 className="text-2xl font-semibold text-white mb-4">Leaderboard</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/20">
+                  <th className="text-left py-3 px-4 text-white">Team Name</th>
+                  <th className="text-right py-3 px-4 text-white">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {content.leaderboard
+                  .sort((a, b) => b.score - a.score)
+                  .map((entry, index) => (
+                    <tr key={index} className="border-b border-white/10">
+                      <td className="py-3 px-4 text-white">{entry.teamName}</td>
+                      <td className="py-3 px-4 text-white text-right">{entry.score}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+    </div>
+  );
+}
+`;
+
+    // Create the directory if it doesn't exist
+    const dir = path.dirname(templatePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // Write the template file
+    fs.writeFileSync(templatePath, templateContent);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Error creating personal finance template page:', error);
+    throw new Error(`Failed to create template page: ${errorMessage}`);
+  }
+}
+
+export async function createPersonalFinanceContent(content: Omit<PersonalFinanceContent, 'id' | 'createdAt'>) {
+  try {
+    const db = await initDB();
+    
+    // Generate a unique ID using timestamp and random string
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const id = `${timestamp}-${random}`;
+    const createdAt = new Date().toISOString();
+    
+    // Generate template path for internal links
+    const templatePath = content.linkType === 'internal' ? `/personal-finance/${content.internalUrl || id}` : null;
+
+    const stmt = await db.prepare(`
+      INSERT INTO personal_finance_content (
+        id, section, itemName, linkType, externalUrl, internalUrl, templatePath,
+        includeTitle, includeInstructions, includeTeams, includeMainActivity, includeLeaderboard,
+        titleContent, instructionsContent, teamsContent, mainActivityContent, leaderboardContent,
+        createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    try {
+      await stmt.run(
+        id,
+        content.section,
+        content.itemName,
+        content.linkType,
+        content.externalUrl,
+        content.internalUrl,
+        templatePath,
+        content.includeTitle ? 1 : 0,
+        content.includeInstructions ? 1 : 0,
+        content.includeTeams ? 1 : 0,
+        content.includeMainActivity ? 1 : 0,
+        content.includeLeaderboard ? 1 : 0,
+        content.titleContent,
+        content.instructionsContent,
+        content.teamsContent,
+        content.mainActivityContent,
+        content.leaderboardContent,
+        createdAt
+      );
+
+      // If this is an internal link, create the template page
+      if (content.linkType === 'internal') {
+        await createPersonalFinanceTemplatePage({
+          id,
+          ...content,
+          createdAt,
+          templatePath: templatePath!
+        });
+      }
+    } finally {
+      await stmt.finalize();
+    }
+
+    return getPersonalFinanceContentById(id);
+  } catch (error) {
+    console.error('Error creating personal finance content:', error);
+    throw error;
+  }
+}
+
+export async function getPersonalFinanceContentById(id: string): Promise<PersonalFinanceContent | null> {
+  try {
+    const db = await initDB();
+    const content = await db.get('SELECT * FROM personal_finance_content WHERE id = ?', id);
+
+    if (!content) return null;
+
+    return {
+      ...content,
+      includeTitle: Boolean(content.includeTitle),
+      includeInstructions: Boolean(content.includeInstructions),
+      includeTeams: Boolean(content.includeTeams),
+      includeMainActivity: Boolean(content.includeMainActivity),
+      includeLeaderboard: Boolean(content.includeLeaderboard),
+    };
+  } catch (error) {
+    console.error('Error getting personal finance content by ID:', error);
+    throw error;
+  }
+}
+
+export async function getAllPersonalFinanceContent(): Promise<PersonalFinanceContent[]> {
+  try {
+    const db = await initDB();
+    const content = await db.all('SELECT * FROM personal_finance_content ORDER BY createdAt DESC');
+
+    return content.map(item => ({
+      ...item,
+      includeTitle: Boolean(item.includeTitle),
+      includeInstructions: Boolean(item.includeInstructions),
+      includeTeams: Boolean(item.includeTeams),
+      includeMainActivity: Boolean(item.includeMainActivity),
+      includeLeaderboard: Boolean(item.includeLeaderboard),
+    }));
+  } catch (error) {
+    console.error('Error getting all personal finance content:', error);
+    throw error;
+  }
+}
+
+export async function updatePersonalFinanceContent(id: string, content: Partial<PersonalFinanceContent>) {
+  try {
+    const db = await initDB();
+    
+    // Get existing content
+    const existingContent = await getPersonalFinanceContentById(id);
+    if (!existingContent) {
+      throw new Error('Content not found');
+    }
+
+    // Update content in database
+    const stmt = await db.prepare(`
+      UPDATE personal_finance_content 
+      SET section = ?, itemName = ?, linkType = ?, externalUrl = ?, internalUrl = ?,
+          includeTitle = ?, includeInstructions = ?, includeTeams = ?, 
+          includeMainActivity = ?, includeLeaderboard = ?, titleContent = ?,
+          instructionsContent = ?, teamsContent = ?, mainActivityContent = ?,
+          leaderboardContent = ?
+      WHERE id = ?
+    `);
+
+    try {
+      await stmt.run(
+        content.section || existingContent.section,
+        content.itemName || existingContent.itemName,
+        content.linkType || existingContent.linkType,
+        content.externalUrl || existingContent.externalUrl,
+        content.internalUrl || existingContent.internalUrl,
+        content.includeTitle ? 1 : 0,
+        content.includeInstructions ? 1 : 0,
+        content.includeTeams ? 1 : 0,
+        content.includeMainActivity ? 1 : 0,
+        content.includeLeaderboard ? 1 : 0,
+        content.titleContent || existingContent.titleContent,
+        content.instructionsContent || existingContent.instructionsContent,
+        content.teamsContent || existingContent.teamsContent,
+        content.mainActivityContent || existingContent.mainActivityContent,
+        content.leaderboardContent || existingContent.leaderboardContent,
+        id
+      );
+    } finally {
+      await stmt.finalize();
+    }
+
+    return getPersonalFinanceContentById(id);
+  } catch (error) {
+    console.error('Error updating personal finance content:', error);
+    throw error;
+  }
+}
+
+export async function deletePersonalFinanceContent(id: string) {
+  try {
+    const db = await initDB();
+    
+    // Get content before deleting to check if we need to delete the template page
+    const content = await getPersonalFinanceContentById(id);
+    if (!content) {
+      throw new Error('Content not found');
+    }
+
+    // Delete content from database
+    await db.run('DELETE FROM personal_finance_content WHERE id = ?', id);
+
+    // If this was an internal link, delete the template page
+    if (content.templatePath) {
+      const templatePath = `src/app${content.templatePath}/page.tsx`;
+      if (fs.existsSync(templatePath)) {
+        fs.unlinkSync(templatePath);
+        
+        // Try to remove the directory if it's empty
+        const dir = path.dirname(templatePath);
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          if (files.length === 0) {
+            fs.rmdirSync(dir);
+          }
+        }
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting personal finance content:', error);
     throw error;
   }
 }

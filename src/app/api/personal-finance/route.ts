@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAllCorporateFinanceContent } from '@/lib/db';
+import { getAllPersonalFinanceContent } from '@/lib/db';
 
 const FIXED_SECTIONS = ['News', 'Challenges', 'Competitions'];
 
@@ -12,9 +12,8 @@ function toTitleCase(str: string): string {
 
 export async function GET() {
   try {
-    const content = await getAllCorporateFinanceContent();
-
-    // Validate content
+    const content = await getAllPersonalFinanceContent();
+    
     if (!Array.isArray(content)) {
       throw new Error('Invalid content format: expected an array');
     }
@@ -27,7 +26,7 @@ export async function GET() {
 
     // Group content by section
     content.forEach(item => {
-      const section = toTitleCase(item.newSectionName || item.section || 'Other');
+      const section = toTitleCase(item.section || 'Other');
       if (!groupedContent[section]) {
         groupedContent[section] = [];
       }
@@ -39,9 +38,7 @@ export async function GET() {
     
     // Add fixed sections first
     FIXED_SECTIONS.forEach(section => {
-      if (groupedContent[section].length > 0) {
-        sortedContent[section] = groupedContent[section];
-      }
+      sortedContent[section] = groupedContent[section];
     });
 
     // Add remaining sections in alphabetical order
@@ -59,7 +56,7 @@ export async function GET() {
       content: sortedContent
     });
   } catch (error) {
-    console.error('Error fetching corporate finance content:', error);
+    console.error('Error fetching personal finance content:', error);
     return NextResponse.json(
       { 
         error: 'Failed to fetch content', 

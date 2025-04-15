@@ -86,6 +86,7 @@ export default function AdminCorporateFinance() {
   const [teams, setTeams] = useState<Team[]>([{ name: '', members: '' }]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [editingLeaderboard, setEditingLeaderboard] = useState<boolean>(false);
+  const [editingTeams, setEditingTeams] = useState<boolean>(false);
 
   const sections: Section[] = [
     { id: 'news', name: 'News' },
@@ -232,8 +233,9 @@ export default function AdminCorporateFinance() {
         setLeaderboard([]);
       }
 
-      // Set editing state for leaderboard
-      setEditingLeaderboard(item.includeLeaderboard);
+      // Reset editing states
+      setEditingLeaderboard(false);
+      setEditingTeams(false);
     } catch (e) {
       console.error('Error parsing teams or leaderboard data:', e);
       setTeams([{ name: '', members: '' }]);
@@ -332,6 +334,51 @@ export default function AdminCorporateFinance() {
         throw new Error('Failed to update leaderboard');
       }
       setEditingLeaderboard(false);
+      await fetchContent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleUpdateTeams = async () => {
+    try {
+      // Filter out empty teams
+      const validTeams = teams.filter(team => team.name.trim() !== '');
+      
+      // Check for duplicate team names
+      const teamNames = validTeams.map(team => team.name);
+      if (new Set(teamNames).size !== teamNames.length) {
+        throw new Error('Duplicate team names are not allowed');
+      }
+      
+      // Update leaderboard with new team names
+      const updatedLeaderboard = validTeams.map(team => ({
+        teamName: team.name,
+        score: leaderboard.find(entry => 
+          // Try to match with old team name or use 0 for new teams
+          entry.teamName === team.name || 
+          entry.teamName === teams.find(t => t.name === team.name)?.name
+        )?.score || 0
+      }));
+
+      const response = await fetch(`/api/corporate-finance/${editingItem?.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...editingItem,
+          teamsContent: JSON.stringify(validTeams),
+          leaderboardContent: JSON.stringify(updatedLeaderboard),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update teams');
+      }
+      
+      setEditingTeams(false);
+      setLeaderboard(updatedLeaderboard);
       await fetchContent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -468,8 +515,30 @@ export default function AdminCorporateFinance() {
                     onClick={() => handleEdit(item)}
                     className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                   >
-                    Edit
+                    Edit Content
                   </button>
+                  {item.includeTeams && (
+                    <button
+                      onClick={() => {
+                        handleEdit(item);
+                        setEditingTeams(true);
+                      }}
+                      className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                    >
+                      Edit Teams
+                    </button>
+                  )}
+                  {item.includeLeaderboard && (
+                    <button
+                      onClick={() => {
+                        handleEdit(item);
+                        setEditingLeaderboard(true);
+                      }}
+                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+                    >
+                      Edit Scores
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDelete(item.id)}
                     className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
@@ -479,43 +548,75 @@ export default function AdminCorporateFinance() {
                 </div>
               </div>
 
-              {item.includeTeams && renderTeamsData(item.teamsContent)}
+              {item.includeTeams && !editingTeams && renderTeamsData(item.teamsContent)}
               {item.includeLeaderboard && !editingLeaderboard && renderLeaderboardData(item.leaderboardContent)}
               
-              {editingItem?.id === item.id && editingLeaderboard && (
+              {editingItem?.id === item.id && editingTeams && (
                 <div className="mt-4 bg-white/5 rounded-lg p-4">
-                  <h4 className="text-lg font-medium text-white mb-2">Update Leaderboard</h4>
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-lg font-medium text-white">Edit Teams</h4>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleUpdateTeams}
+                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                      >
+                        Save Teams
+                      </button>
+                      <button
+                        onClick={() => setEditingTeams(false)}
+                        className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-white/20">
                           <th className="text-left py-2 px-4 text-white">Team Name</th>
-                          <th className="text-left py-2 px-4 text-white">Score</th>
+                          <th className="text-left py-2 px-4 text-white">Members</th>
+                          <th className="text-left py-2 px-4 text-white">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {leaderboard.map((entry, index) => (
+                        {teams.map((team, index) => (
                           <tr key={index} className="border-b border-white/10">
-                            <td className="py-2 px-4 text-white">{entry.teamName}</td>
                             <td className="py-2 px-4">
                               <input
-                                type="number"
-                                value={entry.score}
-                                onChange={(e) => handleLeaderboardScoreChange(index, parseInt(e.target.value) || 0)}
-                                className="w-full p-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                type="text"
+                                value={team.name}
+                                onChange={(e) => handleTeamChange(index, 'name', e.target.value)}
+                                className="w-full bg-white/10 text-white rounded px-2 py-1"
+                                placeholder="Team Name"
                               />
+                            </td>
+                            <td className="py-2 px-4">
+                              <input
+                                type="text"
+                                value={team.members}
+                                onChange={(e) => handleTeamChange(index, 'members', e.target.value)}
+                                className="w-full bg-white/10 text-white rounded px-2 py-1"
+                                placeholder="Team Members"
+                              />
+                            </td>
+                            <td className="py-2 px-4">
+                              <button
+                                onClick={() => handleRemoveTeamRow(index)}
+                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                              >
+                                Remove
+                              </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                  <div className="flex justify-end mt-4">
                     <button
-                      onClick={handleUpdateLeaderboard}
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                      onClick={handleAddTeamRow}
+                      className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                     >
-                      Update Leaderboard
+                      Add Team
                     </button>
                   </div>
                 </div>
