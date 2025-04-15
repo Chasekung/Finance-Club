@@ -1,19 +1,13 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+module.exports = {
   output: 'export',
-  images: {
-    unoptimized: true,
-  },
+  images: { unoptimized: true },
   basePath: '/Finance-Club',
   assetPrefix: '/Finance-Club/',
   trailingSlash: true,
   distDir: 'out',
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   // Disable server-dependent features
   experimental: {
     appDir: true,
@@ -37,6 +31,4 @@ const nextConfig = {
     }
     return config;
   },
-};
-
-module.exports = nextConfig; 
+}; 
