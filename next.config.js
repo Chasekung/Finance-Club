@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
+  basePath: '/Finance-Club',
+  assetPrefix: '/Finance-Club/',
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
