@@ -15,6 +15,9 @@ module.exports = {
   // Ensure static paths are generated
   env: {
     NEXT_PUBLIC_BASE_PATH: '/Finance-Club',
+    NEXT_PUBLIC_API_BASE_URL: process.env.NODE_ENV === 'production' 
+      ? 'https://your-api-domain.com' 
+      : 'http://localhost:3000',
   },
   // Skip API routes during static export
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],

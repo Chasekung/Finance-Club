@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { CorporateFinanceContent } from '@/types';
+import { getCorporateFinanceContent } from '@/services/api/corporateFinance';
 
 interface Team {
   name: string;
@@ -14,25 +16,27 @@ interface LeaderboardEntry {
   score: number;
 }
 
-interface ContentItem {
-  id: string;
-  section: string;
-  itemName: string;
-  includeTitle: boolean;
-  includeInstructions: boolean;
-  includeTeams: boolean;
-  includeMainActivity: boolean;
-  includeLeaderboard: boolean;
-  titleContent: string;
-  instructionsContent: string;
-  teamsContent: string;
-  mainActivityContent: string;
-  leaderboardContent: string;
+export async function generateStaticParams() {
+  // Fetch all corporate finance content IDs
+  const response = await fetch('/api/corporate-finance');
+  if (!response.ok) {
+    return [];
+  }
+  const data = await response.json();
+  
+  // Extract all IDs from the content
+  const ids = Object.values(data.content)
+    .flat()
+    .map((item: any) => item.id);
+  
+  return ids.map((id) => ({
+    id: id.toString(),
+  }));
 }
 
 export default function CorporateFinancePage() {
   const params = useParams();
-  const [content, setContent] = useState<ContentItem | null>(null);
+  const [content, setContent] = useState<CorporateFinanceContent | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,11 +45,7 @@ export default function CorporateFinancePage() {
   useEffect(() => {
     const fetchContent = async () => {
       try {
-        const response = await fetch(`/api/corporate-finance/${params.id}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch content');
-        }
-        const data = await response.json();
+        const data = await getCorporateFinanceContent(params.id as string);
         setContent(data);
 
         // Parse teams data
@@ -84,7 +84,7 @@ export default function CorporateFinancePage() {
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        setError(err instanceof Error ? err.message : 'Failed to load content');
       } finally {
         setLoading(false);
       }
