@@ -3,21 +3,9 @@ import { open } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
 import { compare } from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import prisma from './prisma';
 
 const dbPath = path.join(process.cwd(), 'finance-club.db');
-
-declare global {
-  var prisma: PrismaClient | undefined;
-}
-
-const prisma = global.prisma || new PrismaClient({
-  log: ['query', 'error', 'warn']
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  global.prisma = prisma;
-}
 
 // Initialize database
 export async function initDB() {
