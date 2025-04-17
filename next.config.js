@@ -17,6 +17,25 @@ module.exports = {
   env: {
     NEXT_PUBLIC_BASE_PATH: '/Finance-Club',
   },
+  // Add rewrites for GitHub Pages
+  async rewrites() {
+    return [
+      {
+        source: '/:path*',
+        destination: '/:path*',
+      },
+    ];
+  },
+  // Add redirects for GitHub Pages
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/Finance-Club',
+        permanent: true,
+      },
+    ];
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

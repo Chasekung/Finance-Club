@@ -20,12 +20,8 @@ jobs:
         with:
           node-version: '18'
 
-      # Remove cache usage temporarily
       - name: Install dependencies
         run: npm ci
-        
-      - name: List installed packages
-        run: npm list --depth=0
         
       - name: Build
         run: |
@@ -36,11 +32,19 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: /Finance-Club
           CI: true
 
-      - name: Debug output directory
+      - name: Create root index.html
         run: |
-          echo "Checking output directory..."
-          ls -la out/
-          
+          echo '<!DOCTYPE html>
+          <html>
+            <head>
+              <meta http-equiv="refresh" content="0; url=/Finance-Club/" />
+              <title>Redirecting to Finance Club</title>
+            </head>
+            <body>
+              <p>Redirecting to <a href="/Finance-Club/">Finance Club</a>...</p>
+            </body>
+          </html>' > out/index.html
+
       - name: Add .nojekyll file
         run: touch ./out/.nojekyll
 
