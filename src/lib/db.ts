@@ -3,8 +3,13 @@ import { open } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
 import { compare } from 'bcryptjs';
+import { PrismaClient } from '@prisma/client';
 
 const dbPath = path.join(process.cwd(), 'finance-club.db');
+
+const prisma = new PrismaClient({
+  log: ['query', 'error', 'warn']
+});
 
 // Initialize database
 export async function initDB() {
@@ -981,3 +986,5 @@ export async function deletePersonalFinanceContent(id: string) {
     throw error;
   }
 }
+
+export default prisma;
