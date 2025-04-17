@@ -5,6 +5,11 @@ declare global {
 }
 
 const prismaClientSingleton = () => {
+  if (!process.env.DATABASE_URL) {
+    console.warn('DATABASE_URL is not set. Prisma client will not be initialized.');
+    return undefined;
+  }
+
   return new PrismaClient({
     log: ['query', 'error', 'warn'],
     datasources: {
