@@ -2,10 +2,16 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { getAllUsers } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Remove dynamic export for static builds
+// export const dynamic = 'force-dynamic';
+// export const revalidate = 0;
 
 export async function GET() {
+  // Return empty response during static build
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return NextResponse.json({ users: [] });
+  }
+
   try {
     // Verify admin session
     const session = await getSession();
