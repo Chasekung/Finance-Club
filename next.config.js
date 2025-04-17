@@ -10,13 +10,14 @@ module.exports = {
   eslint: { ignoreDuringBuilds: true },
   // Disable server-dependent features
   experimental: {
-    appDir: true,
-    serverActions: false,
+    webpackBuildWorker: true,
   },
   // Ensure static paths are generated
   env: {
     NEXT_PUBLIC_BASE_PATH: '/Finance-Club',
   },
+  // Skip API routes during static export
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   // Add rewrites for GitHub Pages
   async rewrites() {
     return [

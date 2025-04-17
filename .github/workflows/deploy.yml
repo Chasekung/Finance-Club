@@ -35,7 +35,6 @@ jobs:
         env:
           NEXT_PUBLIC_BASE_PATH: /Finance-Club
           CI: true
-          DATABASE_URL: "file:./dev.db"
           NODE_ENV: "production"
 
       - name: Debug build output
